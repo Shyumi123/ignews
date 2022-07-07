@@ -1,5 +1,5 @@
 
-import { GetServerSideProps } from 'next';
+import { GetStaticProps } from 'next';
 import Head from "next/head";
 import Image from "next/image";
 
@@ -8,13 +8,20 @@ import { stripe } from '../services/stripe';
 
 import styles from './home.module.scss';
 
+// Client-side
+// Server-side
+// Static Site Generation
+
+// Post do Blog
+
+// Conteúdo (SSG)
+// Comentários (Client-side, carregar pelo cliente, não pelo servidor)
 interface HomeProps {
   product: {
     priceId: string;
     amount: number;
   }
 }
-
 
 export default function Home({ product }: HomeProps) {
   return (
@@ -42,7 +49,7 @@ export default function Home({ product }: HomeProps) {
   );
 }
 
-export const getServerSideProps: GetServerSideProps = async () => {
+export const getStaticProps: GetStaticProps = async () => {
   const price = await stripe.prices.retrieve('price_1LIeYDHSIBCic6YlnnEtKiVR')
 
   const product = {
@@ -51,13 +58,13 @@ export const getServerSideProps: GetServerSideProps = async () => {
       style: 'currency',
       currency: 'USD',
     }).format(price.unit_amount / 100)
-    
   }
   
   return {
     props: {
-      product
-    }
+      product,
+    },
+    revalidate: 60 * 60 * 24, // 24 hours
   }
 }
 
