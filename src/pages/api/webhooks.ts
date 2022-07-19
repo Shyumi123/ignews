@@ -2,6 +2,7 @@ import { NextApiResponse, NextApiRequest } from "next";
 import { Readable } from "stream";
 import Stripe from "stripe";
 import { stripe } from "../../services/stripe";
+import { saveSubscription } from "./_lib/manageSubscription";
 
 async function buffer(readable: Readable) {
   const chunks = [];
@@ -19,9 +20,7 @@ export const config = {
   },
 };
 
-const relevantEvents = new Set([
-  'checkout.session.completed'
-])
+const relevantEvents = new Set(["checkout.session.completed"]);
 
 export default async function handle(
   req: NextApiRequest,
@@ -29,25 +28,46 @@ export default async function handle(
 ) {
   if (req.method === "POST") {
     const buf = await buffer(req);
-    const secret = req.headers['stripe-signature']
+    const secret = req.headers["stripe-signature"];
 
     let event: Stripe.Event;
 
     try {
-      event = stripe.webhooks.constructEvent(buf, secret, process.env.STRIPE_WEBHOOK_SECRET)
-    } catch(err) {
-       return res.status(400).send(`Webhook Error: ${err.message}`)
+      event = stripe.webhooks.constructEvent(
+        buf,
+        secret,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+    } catch (err) {
+      return res.status(400).send(`Webhook Error: ${err.message}`);
     }
-    
-    const { type } = event
+
+    const { type } = event;
 
     if (relevantEvents.has(type)) {
-      console.log('Evento recebido', event)
+      try {
+        switch (type) {
+          case "checkout.session.completed":
+
+          const checkoutSession = event.data.object as Stripe.Checkout.Session
+
+            await saveSubscription(
+              checkoutSession.subscription.toString(),
+              checkoutSession.customer.toString()
+              )
+            break;
+          default:
+            throw new Error("Unhandled event.");
+        }
+      } catch (error) {
+        console.log(error)
+        return res.json({ error: 'Webhook handler failed. '})
+      }
     }
 
-    return res.json( { received: true })
+    return res.json({ received: true });
   } else {
-    res.setHeader('Allow', 'POST') 
-    res.status(405).end('Method not allowed')
+    res.setHeader("Allow", "POST");
+    res.status(405).end("Method not allowed");
   }
 }
